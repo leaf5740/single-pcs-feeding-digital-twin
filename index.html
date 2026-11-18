@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="单 PCS 自动检测补料设备 Three.js 数字孪生交互系统"
+    />
+    <title>单 PCS 自动补料设备 · Digital Twin</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./vendor/lucide.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three.module.js"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <header class="topbar">
+        <div class="brand-block">
+          <div class="brand-mark" aria-hidden="true">
+            <i data-lucide="scan-line"></i>
+          </div>
+          <div class="brand-copy">
+            <div class="brand-kicker">DIGITAL TWIN · LINE 01</div>
+            <h1>单 PCS 自动补料设备</h1>
+          </div>
+        </div>
+
+        <div class="topbar-status" aria-label="系统状态">
+          <div class="status-item">
+            <span class="status-dot is-live"></span>
+            <span class="status-label">PLC</span>
+            <strong id="plcStatus">CONNECTED</strong>
+          </div>
+          <div class="status-item">
+            <span class="status-dot is-camera"></span>
+            <span class="status-label">AOI</span>
+            <strong id="aoiStatus">READY</strong>
+          </div>
+          <div class="status-item topbar-clock">
+            <span class="status-label">LOCAL</span>
+            <strong id="clockText">--:--:--</strong>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="structureToggle" class="icon-button mobile-panel-toggle" type="button" aria-label="打开设备结构" title="设备结构">
+            <i data-lucide="panel-left"></i>
+          </button>
+          <button id="detailToggle" class="icon-button mobile-panel-toggle" type="button" aria-label="打开部件详情" title="部件详情">
+            <i data-lucide="panel-right"></i>
+          </button>
+          <button id="fullscreenButton" class="icon-button" type="button" aria-label="全屏查看" title="全屏查看">
+            <i data-lucide="maximize-2"></i>
+          </button>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <aside id="structurePanel" class="side-panel structure-panel" aria-label="设备结构树">
+          <div class="panel-heading">
+            <div>
+              <span class="panel-kicker">ASSET HIERARCHY</span>
+              <h2>设备结构</h2>
+            </div>
+            <button class="icon-button panel-close" id="structureClose" type="button" aria-label="关闭结构面板" title="关闭">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+
+          <div class="asset-summary">
+            <span class="asset-id">PCS-FEED-01</span>
+            <span class="asset-revision">REV.03</span>
+          </div>
+
+          <nav id="structureTree" class="structure-tree" aria-label="设备部件树"></nav>
+
+          <div class="panel-footnote">
+            <div class="key-value">
+              <span>READY ASSETS</span>
+              <strong id="assetCount">0</strong>
+            </div>
+            <div class="panel-line"></div>
+            <div class="key-value">
+              <span>MOTION PLATFORM</span>
+              <strong>3 AXIS SERVO</strong>
+            </div>
+          </div>
+        </aside>
+
+        <section id="viewport" class="viewport-section" aria-label="设备三维视图">
+          <canvas id="viewportCanvas"></canvas>
+          <div class="viewport-grid" aria-hidden="true"></div>
+          <div class="viewport-scanline" aria-hidden="true"></div>
+
+          <div class="viewport-top-left">
+            <div class="scene-title-block">
+              <span class="live-chip"><span></span> LIVE DIGITAL TWIN</span>
+              <h2>设备总览</h2>
+              <p id="sceneSubtitle">1600 × 1000 × 1800 mm</p>
+            </div>
+          </div>
+
+          <div class="viewport-top-right">
+            <div class="axis-readout">
+              <div><span>X</span><strong id="readoutX">0000</strong><em>mm</em></div>
+              <div><span>Y</span><strong id="readoutY">0000</strong><em>mm</em></div>
+              <div><span>Z</span><strong id="readoutZ">0000</strong><em>mm</em></div>
+            </div>
+            <div class="renderer-readout">
+              <span id="fpsText">60 FPS</span>
+              <span id="drawCallText">-- CALLS</span>
+            </div>
+          </div>
+
+          <div id="selectionMarker" class="selection-marker" aria-hidden="true">
+            <span></span>
+            <strong>SELECTED</strong>
+          </div>
+
+          <div class="view-toolbar" aria-label="视角预设">
+            <button type="button" class="view-button is-active" data-view="iso">ISO</button>
+            <button type="button" class="view-button" data-view="front">正视</button>
+            <button type="button" class="view-button" data-view="side">侧视</button>
+            <button type="button" class="view-button" data-view="top">俯视</button>
+            <button type="button" class="view-button view-reset" data-view="reset" aria-label="恢复默认视角" title="恢复默认视角">
+              <i data-lucide="rotate-ccw"></i>
+            </button>
+          </div>
+
+          <div class="viewport-bottom-left">
+            <div class="legend-line"><span class="legend-color is-product"></span>产品</div>
+            <div class="legend-line"><span class="legend-color is-motion"></span>运动轴</div>
+            <div class="legend-line"><span class="legend-color is-vision"></span>视觉</div>
+            <div class="legend-line"><span class="legend-color is-empty"></span>缺料</div>
+          </div>
+
+          <div class="viewport-bottom-right">
+            <div class="coordinate-system" aria-hidden="true">
+              <span class="axis-x">X</span>
+              <span class="axis-y">Y</span>
+              <span class="axis-z">Z</span>
+              <i></i>
+            </div>
+          </div>
+
+          <div id="bootLoader" class="boot-loader">
+            <div class="boot-emblem"><i data-lucide="scan-line"></i></div>
+            <div class="boot-title">DIGITAL TWIN INITIALIZING</div>
+            <div class="boot-line"><span></span></div>
+            <div id="bootProgress" class="boot-progress">0%</div>
+          </div>
+        </section>
+
+        <aside id="detailPanel" class="side-panel detail-panel" aria-label="部件详情与视觉检测">
+          <div class="panel-heading detail-heading">
+            <div>
+              <span class="panel-kicker">ASSET INSPECTOR</span>
+              <h2>部件详情</h2>
+            </div>
+            <button class="icon-button panel-close" id="detailClose" type="button" aria-label="关闭详情面板" title="关闭">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+
+          <section id="partInspector" class="part-inspector" aria-live="polite"></section>
+
+          <div class="vision-panel">
+            <div class="vision-heading">
+              <div>
+                <span class="panel-kicker">MACHINE VISION</span>
+                <h3>缺料检测</h3>
+              </div>
+              <div class="vision-heading-actions">
+                <span id="visionLive" class="vision-live"><span></span>AOI</span>
+                <button id="arraySettingsButton" class="icon-button small-icon" type="button" aria-label="阵列参数" title="阵列参数">
+                  <i data-lucide="sliders-horizontal"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="vision-tabs" role="tablist" aria-label="视觉检测结果">
+              <button type="button" class="vision-tab is-active" data-vision-tab="first" role="tab" aria-selected="true">第一次</button>
+              <button type="button" class="vision-tab" data-vision-tab="second" role="tab" aria-selected="false">第二次</button>
+              <button type="button" class="vision-tab" data-vision-tab="compare" role="tab" aria-selected="false">缺料对比</button>
+            </div>
+
+            <div class="tray-stage">
+              <div class="tray-stage-header">
+                <span>300 × 200 mm</span>
+                <span id="trayLayoutText">8 R × 8 C</span>
+              </div>
+              <div id="visionGrid" class="vision-grid" aria-label="料盘产品状态矩阵"></div>
+              <div class="tray-scanbar" aria-hidden="true"></div>
+            </div>
+
+            <div class="vision-legend">
+              <span><i class="is-present"></i>有料</span>
+              <span><i class="is-missing"></i>缺料</span>
+              <span><i class="is-refilling"></i>补料中</span>
+              <span><i class="is-unknown"></i>未检测</span>
+            </div>
+
+            <div class="vision-metrics">
+              <div>
+                <span>检测总量</span>
+                <strong id="detectedCount">64</strong>
+              </div>
+              <div>
+                <span>缺料数</span>
+                <strong id="missingCount" class="metric-warning">00</strong>
+              </div>
+              <div>
+                <span>已补充</span>
+                <strong id="refilledCount">00</strong>
+              </div>
+            </div>
+
+            <div id="visionResultBar" class="vision-result-bar" aria-live="polite">
+              <i data-lucide="scan-search"></i>
+              <span>等待首次拍照</span>
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      <footer class="bottom-dock">
+        <div class="process-strip">
+          <div class="process-label">
+            <span>PROCESS</span>
+            <strong id="processState">READY</strong>
+          </div>
+          <div class="process-track" aria-label="运行流程进度">
+            <div id="processProgress" class="process-progress"></div>
+            <div id="processNodes" class="process-nodes">
+              <span class="process-node is-active" data-step="load">上料</span>
+              <span class="process-node" data-step="capture-1">一次拍照</span>
+              <span class="process-node" data-step="transfer-y">Y转移</span>
+              <span class="process-node" data-step="capture-2">二次拍照</span>
+              <span class="process-node" data-step="compare">缺料判定</span>
+              <span class="process-node" data-step="refill">XYZ补料</span>
+              <span class="process-node" data-step="release">放行</span>
+            </div>
+          </div>
+          <div class="process-meta">
+            <span id="stepCounter">00 / 00</span>
+            <strong id="cycleTime">00:00.0</strong>
+          </div>
+        </div>
+
+        <div class="control-row">
+          <div class="control-group transport-controls">
+            <span class="control-label">CYCLE</span>
+            <div class="button-cluster">
+              <button id="playButton" class="control-button primary-control" type="button" title="播放">
+                <i data-lucide="play"></i>
+                <span>播放</span>
+              </button>
+              <button id="pauseButton" class="control-button" type="button" title="暂停">
+                <i data-lucide="pause"></i>
+                <span>暂停</span>
+              </button>
+              <button id="stepButton" class="control-button" type="button" title="单步执行">
+                <i data-lucide="skip-forward"></i>
+                <span>单步</span>
+              </button>
+              <button id="resetButton" class="control-button" type="button" title="复位">
+                <i data-lucide="rotate-ccw"></i>
+                <span>复位</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group mode-controls">
+            <span class="control-label">SIMULATION</span>
+            <div class="segmented-control" role="group" aria-label="模拟模式">
+              <button type="button" data-mode="normal">正常</button>
+              <button type="button" data-mode="single" class="is-active">单缺料</button>
+              <button type="button" data-mode="multi">多缺料</button>
+            </div>
+          </div>
+
+          <div class="control-group speed-control">
+            <div class="control-label-row">
+              <span class="control-label">SPEED</span>
+              <strong id="speedValue">1.0×</strong>
+            </div>
+            <input id="speedRange" type="range" min="0.5" max="2.5" step="0.25" value="1" aria-label="运行速度" />
+          </div>
+
+          <div class="control-group utility-controls">
+            <span class="control-label">STRUCTURE</span>
+            <div class="button-cluster">
+              <button id="explodeButton" class="control-button" type="button" title="整机拆解">
+                <i data-lucide="ungroup"></i>
+                <span>拆解</span>
+              </button>
+              <button id="restoreButton" class="control-button" type="button" title="整机复原">
+                <i data-lucide="group"></i>
+                <span>复原</span>
+              </button>
+              <button id="shellModeButton" class="control-button icon-text-control" type="button" title="切换外壳显示">
+                <i data-lucide="panels-top-left"></i>
+                <span>外壳</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <div id="explodeMenu" class="popover-menu" hidden>
+      <div class="popover-heading">
+        <strong>预设拆解</strong>
+        <span>STRUCTURE EXPLODE</span>
+      </div>
+      <button type="button" data-explode="whole"><i data-lucide="boxes"></i>整机拆解</button>
+      <button type="button" data-explode="shell"><i data-lucide="shield"></i>外壳拆解</button>
+      <button type="button" data-explode="xyz"><i data-lucide="move-3d"></i>XYZ 机构</button>
+      <button type="button" data-explode="vision"><i data-lucide="scan-eye"></i>视觉机构</button>
+      <button type="button" data-explode="conveyor"><i data-lucide="arrow-right-left"></i>输送机构</button>
+      <button type="button" data-explode="electrical"><i data-lucide="zap"></i>电气柜</button>
+      <button type="button" data-explode="supply"><i data-lucide="layers-3"></i>供料机构</button>
+    </div>
+
+    <dialog id="arrayDialog" class="settings-dialog">
+      <form id="arrayForm" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <span class="panel-kicker">TRAY CONFIGURATION</span>
+            <h2>料盘阵列参数</h2>
+          </div>
+          <button id="arrayDialogClose" class="icon-button" type="button" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="dialog-grid">
+          <label>
+            <span>行数</span>
+            <input id="gridRows" name="rows" type="number" min="2" max="12" step="1" value="8" />
+            <em>ROWS</em>
+          </label>
+          <label>
+            <span>列数</span>
+            <input id="gridCols" name="cols" type="number" min="2" max="12" step="1" value="8" />
+            <em>COLS</em>
+          </label>
+          <label>
+            <span>X 间距</span>
+            <input id="pitchX" name="pitchX" type="number" min="14" max="60" step="1" value="34" />
+            <em>mm</em>
+          </label>
+          <label>
+            <span>Y 间距</span>
+            <input id="pitchZ" name="pitchZ" type="number" min="12" max="40" step="1" value="22" />
+            <em>mm</em>
+          </label>
+        </div>
+        <div class="dialog-note">
+          阵列范围限制在 300 × 200 mm 料盘内，超出时自动压缩到可用间距。
+        </div>
+        <div class="dialog-actions">
+          <button id="arrayCancelButton" class="dialog-button" type="button">取消</button>
+          <button class="dialog-button primary-dialog-button" type="submit">应用参数</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="hoverLabel" class="hover-label" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
